@@ -1,12 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const mockUsers = require('../mockData/users');
+const mockLeaderBoard = require('../mockData/players');
 
 // Get all users
 router.get('/', (req, res) => {
   // Remove sensitive information
   const sanitizedUsers = mockUsers.map(({ email, ...user }) => user);
   res.json(sanitizedUsers);
+});
+
+router.get('/leaderboard', (req, res) => {
+  //get the top players
+  const leaderboard = mockLeaderBoard;
+  res.json(leaderboard);
 });
 
 // Get user by id

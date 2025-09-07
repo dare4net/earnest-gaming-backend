@@ -1,25 +1,34 @@
 const mockMatches = [
   {
-    id: '1',
-    gameId: 'codm',
-    type: 'ranked',
-    status: 'in_progress',
-    player1: {
-      id: '1',
-      username: 'ProGamer123'
-    },
-    player2: {
-      id: '2',
-      username: 'GameMaster99'
-    },
+    id: "match-001",
+    game: "eFootball",
+    gameIcon: "⚽",
+    players: ["ProGamer123", "SkillMaster99"],
     wagerAmount: 50,
-    startTime: '2025-08-27T14:30:00Z',
-    gameMode: 'multiplayer',
-    settings: {
-      mode: 'Team Deathmatch',
-      map: 'Nuketown',
-      scoreLimit: 50
-    }
+    status: "active",
+    startTime: "2024-01-20T10:30:00Z",
+    duration: "15 min"
+  },
+  {
+    id: "match-002",
+    game: "FIFA",
+    gameIcon: "🏆",
+    players: ["ChampionPlayer", "NewbieGamer"],
+    wagerAmount: 75,
+    status: "verification",
+    startTime: "2024-01-20T10:15:00Z",
+    duration: "12 min"
+  },
+  {
+    id: "match-003",
+    game: "CODM",
+    gameIcon: "🎯",
+    players: ["SniperElite", "BattleRoyale"],
+    wagerAmount: 100,
+    status: "completed",
+    startTime: "2024-01-20T09:45:00Z",
+    duration: "8 min",
+    winner: "SniperElite"
   },
   {
     id: '2',

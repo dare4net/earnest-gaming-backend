@@ -1,9 +1,21 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const mongoose = require('mongoose');
+//const logger = require('./middleware/logger');
 
 // Load environment variables
 dotenv.config();
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => {
+    console.log('Connected to MongoDB');
+  })
+  .catch((error) => {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  });
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
@@ -16,9 +28,13 @@ const walletRoutes = require('./routes/wallet.routes');
 const app = express();
 
 // Middleware
-app.use(cors());
+/*app.use(cors({
+  origin: 'http://localhost:3000', // Your frontend URL
+  credentials: true // Allow credentials
+}));*/
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+//app.use(logger.requestLogger);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -35,7 +51,7 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error('Unhandled error:', { error: err.stack });
   res.status(500).json({ message: 'Something went wrong!' });
 });
 
