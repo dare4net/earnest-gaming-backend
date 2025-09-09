@@ -33,6 +33,22 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Swagger UI (served if openapi.json is present)
+try {
+  const path = require('path');
+  const fs = require('fs');
+  const swaggerUi = require('swagger-ui-express');
+  const openapiPath = path.join(__dirname, '..', 'openapi.json');
+  if (fs.existsSync(openapiPath)) {
+    const openapi = require(openapiPath);
+    app.get('/api/openapi.json', (req, res) => res.json(openapi));
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi));
+    console.log('📄 Swagger UI available at /api/docs');
+  }
+} catch (e) {
+  console.warn('Swagger UI not configured:', e?.message);
+}
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/games', gameRoutes);
