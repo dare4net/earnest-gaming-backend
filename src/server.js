@@ -33,20 +33,33 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Swagger UI (served if openapi.json is present)
-try {
-  const path = require('path');
-  const fs = require('fs');
-  const swaggerUi = require('swagger-ui-express');
-  const openapiPath = path.join(__dirname, '..', 'openapi.json');
-  if (fs.existsSync(openapiPath)) {
-    const openapi = require(openapiPath);
-    app.get('/api/openapi.json', (req, res) => res.json(openapi));
-    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapi));
-    console.log('📄 Swagger UI available at /api/docs');
-  }
-} catch (e) {
-  console.warn('Swagger UI not configured:', e?.message);
+// Swagger UI setup
+const swaggerUi = require('swagger-ui-express');
+const path = require('path');
+const fs = require('fs');
+
+// Load OpenAPI spec
+const openapiPath = path.join(__dirname, '..', 'openapi.json');
+if (fs.existsSync(openapiPath)) {
+  const openapi = require(openapiPath);
+  
+  // Serve OpenAPI spec as JSON
+  app.get('/api/openapi.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.json(openapi);
+  });
+  
+  // Serve Swagger UI
+  app.use('/api/docs', swaggerUi.serve);
+  app.get('/api/docs', swaggerUi.setup(openapi, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'Earnest Gaming API'
+  }));
+  
+  console.log('📄 Swagger UI available at /api/docs');
+  console.log('📄 OpenAPI spec available at /api/openapi.json');
+} else {
+  console.warn('⚠️  openapi.json not found, Swagger UI disabled');
 }
 
 // Routes
