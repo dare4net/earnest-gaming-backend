@@ -1,0 +1,269 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Earnest Gaming API",
+    "version": "1.0.0",
+    "description": "OpenAPI spec for the Earnest Gaming backend"
+  },
+  "servers": [
+    { "url": "http://localhost:5000/api", "description": "Local dev" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "username": { "type": "string" },
+          "email": { "type": "string" },
+          "avatar": { "type": "string" },
+          "wins": { "type": "number" },
+          "winRate": { "type": "number" },
+          "earnings": { "type": "number" },
+          "rank": { "type": "number" },
+          "previousRank": { "type": "number" },
+          "role": { "type": "string", "enum": ["user", "admin"] }
+        }
+      },
+      "Game": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "title": { "type": "string" },
+          "slug": { "type": "string" },
+          "description": { "type": "string" },
+          "coverImage": { "type": "string" },
+          "platform": { "type": "string", "enum": ["Mobile", "Console", "PC"] },
+          "minEntryFee": { "type": "number" },
+          "maxEntryFee": { "type": "number" },
+          "status": { "type": "string", "enum": ["active", "inactive", "maintenance"] },
+          "rules": { "type": "array", "items": { "type": "string" } },
+          "matchFormat": { "type": "string", "enum": ["1v1", "2v2", "3v3", "4v4", "5v5"] }
+        }
+      },
+      "League": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string" },
+          "game": { "$ref": "#/components/schemas/Game" },
+          "description": { "type": "string" },
+          "startDate": { "type": "string", "format": "date-time" },
+          "endDate": { "type": "string", "format": "date-time" },
+          "entryFee": { "type": "number" },
+          "prizePool": { "type": "number" },
+          "maxParticipants": { "type": "number" },
+          "participants": { "type": "array", "items": { "type": "object" } },
+          "format": { "type": "string", "enum": ["knockout", "roundRobin", "groupStage"] },
+          "status": { "type": "string", "enum": ["upcoming", "registration", "inProgress", "completed", "cancelled"] },
+          "matches": { "type": "array", "items": { "type": "string" } },
+          "rules": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Match": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "game": { "$ref": "#/components/schemas/Game" },
+          "league": { "$ref": "#/components/schemas/League" },
+          "players": { "type": "array", "items": { "type": "object" } },
+          "startTime": { "type": "string", "format": "date-time" },
+          "endTime": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["scheduled", "inProgress", "verification", "disputed", "completed", "cancelled"] },
+          "winner": { "type": "string" },
+          "entryFee": { "type": "number" },
+          "prizePool": { "type": "number" },
+          "format": { "type": "string", "enum": ["1v1", "2v2", "3v3", "4v4", "5v5"] },
+          "rules": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Wallet": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "user": { "type": "string" },
+          "balance": { "type": "number" },
+          "currency": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "frozen", "suspended"] },
+          "totalDeposited": { "type": "number" },
+          "totalWithdrawn": { "type": "number" },
+          "totalWinnings": { "type": "number" }
+        }
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "user": { "type": "string" },
+          "type": { "type": "string" },
+          "amount": { "type": "number" },
+          "currency": { "type": "string" },
+          "status": { "type": "string" },
+          "reference": { "type": "string" },
+          "description": { "type": "string" },
+          "paymentMethod": { "type": "string" },
+          "balanceBefore": { "type": "number" },
+          "balanceAfter": { "type": "number" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "error": { "type": "string" }
+        }
+      }
+    }
+  },
+  "security": [],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "email": { "type": "string" },
+                  "password": { "type": "string" },
+                  "selectedGames": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["username", "email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created" },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                },
+                "required": ["email", "password"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Get current user",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "summary": "Logout",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" } }
+      }
+    },
+    "/auth/profile": {
+      "patch": {
+        "summary": "Update profile",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object" } } }
+        },
+        "responses": { "200": { "description": "OK" }, "400": { "description": "Bad Request" }, "401": { "description": "Unauthorized" } }
+      }
+    },
+    "/games": {
+      "get": {
+        "summary": "List games",
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Game" } } } } } }
+      }
+    },
+    "/games/{id}": {
+      "get": {
+        "summary": "Get game",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Game" } } } }, "404": { "description": "Not Found" } }
+      }
+    },
+    "/games/{id}/players": {
+      "get": {
+        "summary": "Get players online (placeholder)",
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/leagues": {
+      "get": { "summary": "List leagues", "responses": { "200": { "description": "OK" } } },
+      "post": { "summary": "Create league", "security": [{ "bearerAuth": [] }], "responses": { "201": { "description": "Created" }, "401": { "description": "Unauthorized" }, "403": { "description": "Forbidden" }, "400": { "description": "Bad Request" } } }
+    },
+    "/leagues/{id}": {
+      "get": { "summary": "Get league", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "404": { "description": "Not Found" } } },
+      "put": { "summary": "Update league", "security": [{ "bearerAuth": [] }], "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "400": { "description": "Bad Request" }, "401": { "description": "Unauthorized" }, "403": { "description": "Forbidden" }, "404": { "description": "Not Found" } } },
+      "delete": { "summary": "Delete league", "security": [{ "bearerAuth": [] }], "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "204": { "description": "No Content" }, "401": { "description": "Unauthorized" }, "403": { "description": "Forbidden" }, "404": { "description": "Not Found" } } }
+    },
+    "/matches": {
+      "get": { "summary": "List matches", "responses": { "200": { "description": "OK" } } },
+      "post": { "summary": "Create match", "security": [{ "bearerAuth": [] }], "responses": { "201": { "description": "Created" }, "400": { "description": "Bad Request" }, "401": { "description": "Unauthorized" } } }
+    },
+    "/matches/{id}": {
+      "get": { "summary": "Get match", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "404": { "description": "Not Found" } } }
+    },
+    "/matches/user/{userId}": {
+      "get": { "summary": "List user's matches", "parameters": [ { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } }
+    },
+    "/users": {
+      "get": { "summary": "List users", "responses": { "200": { "description": "OK" } } }
+    },
+    "/users/leaderboard": {
+      "get": { "summary": "Leaderboard", "responses": { "200": { "description": "OK" } } }
+    },
+    "/users/{id}": {
+      "get": { "summary": "Get user", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "404": { "description": "Not Found" } } }
+    },
+    "/users/{id}/stats": {
+      "get": { "summary": "User stats", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "404": { "description": "Not Found" } } }
+    },
+    "/wallet/user/{userId}": {
+      "get": { "summary": "Get wallet", "security": [{ "bearerAuth": [] }], "parameters": [ { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" }, "403": { "description": "Forbidden" }, "404": { "description": "Not Found" } } }
+    },
+    "/wallet/user/{userId}/transactions": {
+      "get": { "summary": "Get transactions", "security": [{ "bearerAuth": [] }], "parameters": [ { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "401": { "description": "Unauthorized" }, "403": { "description": "Forbidden" } } }
+    },
+    "/wallet/transaction": {
+      "post": { "summary": "Create transaction", "security": [{ "bearerAuth": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } }, "responses": { "201": { "description": "Created" }, "400": { "description": "Bad Request" }, "401": { "description": "Unauthorized" }, "403": { "description": "Forbidden" } } }
+    }
+  }
+}
+
+

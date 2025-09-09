@@ -1,51 +1,80 @@
 const express = require('express');
 const router = express.Router();
-const { mockLeagues } = require('../data/mockData');
+const League = require('../models/league.model');
+const Game = require('../models/game.model');
+const auth = require('../middleware/auth');
+const { requireRole } = require('../middleware/auth');
 
 // Get all leagues
-router.get('/', (req, res) => {
-  res.json(mockLeagues);
+router.get('/', async (req, res) => {
+  try {
+    const leagues = await League.find()
+      .populate('game', 'title slug')
+      .populate('matches')
+      .lean();
+    res.json(leagues);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching leagues', error: error.message });
+  }
 });
 
 // Get league by ID
-router.get('/:id', (req, res) => {
-  const league = mockLeagues.find(l => l.id === req.params.id);
-  if (!league) {
-    return res.status(404).json({ message: 'League not found' });
+router.get('/:id', async (req, res) => {
+  try {
+    const league = await League.findById(req.params.id)
+      .populate('game', 'title slug')
+      .populate({ path: 'participants.user', select: 'username avatar rank' })
+      .populate('matches')
+      .lean();
+    if (!league) {
+      return res.status(404).json({ message: 'League not found' });
+    }
+    res.json(league);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching league', error: error.message });
   }
-  res.json(league);
 });
 
 // Create new league
-router.post('/', (req, res) => {
-  const newLeague = {
-    id: (mockLeagues.length + 1).toString(),
-    ...req.body,
-    participants: 0,
-    status: 'registration_open'
-  };
-  mockLeagues.push(newLeague);
-  res.status(201).json(newLeague);
+router.post('/', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const { game, ...payload } = req.body;
+    const gameDoc = await Game.findById(game);
+    if (!gameDoc) {
+      return res.status(400).json({ message: 'Invalid game id' });
+    }
+    const league = await League.create({ game, ...payload });
+    res.status(201).json(league);
+  } catch (error) {
+    res.status(400).json({ message: 'Error creating league', error: error.message });
+  }
 });
 
 // Update league
-router.put('/:id', (req, res) => {
-  const index = mockLeagues.findIndex(l => l.id === req.params.id);
-  if (index === -1) {
-    return res.status(404).json({ message: 'League not found' });
+router.put('/:id', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const league = await League.findByIdAndUpdate(req.params.id, req.body, { new: true })
+      .populate('game', 'title slug');
+    if (!league) {
+      return res.status(404).json({ message: 'League not found' });
+    }
+    res.json(league);
+  } catch (error) {
+    res.status(400).json({ message: 'Error updating league', error: error.message });
   }
-  mockLeagues[index] = { ...mockLeagues[index], ...req.body };
-  res.json(mockLeagues[index]);
 });
 
 // Delete league
-router.delete('/:id', (req, res) => {
-  const index = mockLeagues.findIndex(l => l.id === req.params.id);
-  if (index === -1) {
-    return res.status(404).json({ message: 'League not found' });
+router.delete('/:id', auth, requireRole('admin'), async (req, res) => {
+  try {
+    const league = await League.findByIdAndDelete(req.params.id);
+    if (!league) {
+      return res.status(404).json({ message: 'League not found' });
+    }
+    res.status(204).send();
+  } catch (error) {
+    res.status(400).json({ message: 'Error deleting league', error: error.message });
   }
-  mockLeagues.splice(index, 1);
-  res.status(204).send();
 });
 
 module.exports = router;

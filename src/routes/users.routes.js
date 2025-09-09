@@ -1,44 +1,61 @@
 const express = require('express');
 const router = express.Router();
-const mockUsers = require('../mockData/users');
-const mockLeaderBoard = require('../mockData/players');
+const User = require('../models/user.model');
+const Match = require('../models/match.model');
 
-// Get all users
-router.get('/', (req, res) => {
-  // Remove sensitive information
-  const sanitizedUsers = mockUsers.map(({ email, ...user }) => user);
-  res.json(sanitizedUsers);
-});
-
-router.get('/leaderboard', (req, res) => {
-  //get the top players
-  const leaderboard = mockLeaderBoard;
-  res.json(leaderboard);
-});
-
-// Get user by id
-router.get('/:id', (req, res) => {
-  const user = mockUsers.find(u => u.id === req.params.id);
-  if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+// Get all users (sanitized)
+router.get('/', async (req, res) => {
+  try {
+    const users = await User.find().select('-password').lean();
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching users', error: error.message });
   }
-  // Remove sensitive information
-  const { email, ...sanitizedUser } = user;
-  res.json(sanitizedUser);
 });
 
-// Get user stats
-router.get('/:id/stats', (req, res) => {
-  const user = mockUsers.find(u => u.id === req.params.id);
-  if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+// Leaderboard (top by wins, then winRate)
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const users = await User.find()
+      .select('username avatar wins winRate earnings rank previousRank')
+      .sort({ wins: -1, winRate: -1 })
+      .limit(50)
+      .lean();
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching leaderboard', error: error.message });
   }
-  const stats = {
-    matchesPlayed: user.matchesPlayed,
-    winRate: user.winRate,
-    achievements: user.achievements
-  };
-  res.json(stats);
+});
+
+// Get user by id (sanitized)
+router.get('/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password').lean();
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching user', error: error.message });
+  }
+});
+
+// Get user stats (derived)
+router.get('/:id/stats', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('wins winRate earnings').lean();
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const matchesPlayed = await Match.countDocuments({ 'players.user': req.params.id });
+    res.json({
+      matchesPlayed,
+      winRate: user.winRate,
+      earnings: user.earnings
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching user stats', error: error.message });
+  }
 });
 
 module.exports = router;

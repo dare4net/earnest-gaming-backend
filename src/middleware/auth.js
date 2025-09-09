@@ -25,3 +25,16 @@ const auth = async (req, res, next) => {
 };
 
 module.exports = auth;
+
+// Role-based access control middleware factory
+module.exports.requireRole = function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Please authenticate' });
+    }
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Forbidden: insufficient role' });
+    }
+    next();
+  };
+};
