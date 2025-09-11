@@ -2,13 +2,23 @@ const mongoose = require('mongoose');
 
 const matchSchema = new mongoose.Schema({
   game: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Game',
-    required: true
+    type: String,
+    required: true,
+    enum: ['CODM', 'eFootball', 'FIFA']
   },
   league: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'League'
+  },
+  matchType: {
+    type: String,
+    enum: ['regular', 'league'],
+    default: 'regular'
+  },
+  matchmakingStatus: {
+    type: String,
+    enum: ['searching', 'matched', 'ready'],
+    default: 'searching'
   },
   players: [{
     user: {
@@ -104,6 +114,37 @@ const matchSchema = new mongoose.Schema({
       ref: 'User'
     },
     resolvedAt: Date
+  },
+  verification: {
+    status: {
+      type: String,
+      enum: ['pending', 'verified', 'rejected', 'disputed'],
+      default: 'pending'
+    },
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    verifiedAt: Date,
+    verificationNotes: String
+  },
+  escrow: {
+    totalAmount: {
+      type: Number,
+      required: true
+    },
+    platformFee: {
+      type: Number,
+      default: 0
+    },
+    winnerPayout: {
+      type: Number,
+      default: 0
+    },
+    refunded: {
+      type: Boolean,
+      default: false
+    }
   }
 }, {
   timestamps: true

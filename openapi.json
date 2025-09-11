@@ -71,7 +71,7 @@
         "type": "object",
         "properties": {
           "_id": { "type": "string" },
-          "game": { "$ref": "#/components/schemas/Game" },
+          "game": { "type": "string", "enum": ["CODM", "eFootball", "FIFA"] },
           "league": { "$ref": "#/components/schemas/League" },
           "players": { "type": "array", "items": { "type": "object" } },
           "startTime": { "type": "string", "format": "date-time" },
@@ -81,7 +81,9 @@
           "entryFee": { "type": "number" },
           "prizePool": { "type": "number" },
           "format": { "type": "string", "enum": ["1v1", "2v2", "3v3", "4v4", "5v5"] },
-          "rules": { "type": "array", "items": { "type": "string" } }
+          "rules": { "type": "array", "items": { "type": "string" } },
+          "matchType": { "type": "string", "enum": ["regular", "league"] },
+          "matchmakingStatus": { "type": "string", "enum": ["searching", "matched", "ready"] }
         }
       },
       "Wallet": {
@@ -236,11 +238,200 @@
       "get": { "summary": "List matches", "responses": { "200": { "description": "OK" } } },
       "post": { "summary": "Create match", "security": [{ "bearerAuth": [] }], "responses": { "201": { "description": "Created" }, "400": { "description": "Bad Request" }, "401": { "description": "Unauthorized" } } }
     },
+    "/matches/create": {
+      "post": {
+        "summary": "Create a match (always creates, even if no opponent)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "game": { "type": "string", "enum": ["CODM", "eFootball", "FIFA"] },
+                  "matchType": { "type": "string", "enum": ["regular", "league"], "default": "regular" },
+                  "entryFee": { "type": "number", "default": 1000 },
+                  "format": { "type": "string", "enum": ["1v1", "2v2", "3v3", "4v4", "5v5"], "default": "1v1" },
+                  "rules": { "type": "array", "items": { "type": "string" }, "default": ["Best of 3"] }
+                },
+                "required": ["game"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Match" } } } },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/matches/{id}/searchOpponent": {
+      "post": {
+        "summary": "Search for opponents for a specific match",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": {
+          "200": { 
+            "description": "OK", 
+            "content": { 
+              "application/json": { 
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "matchId": { "type": "string" },
+                    "potentialOpponents": { 
+                      "type": "array", 
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "_id": { "type": "string" },
+                          "username": { "type": "string" },
+                          "avatar": { "type": "string" },
+                          "rank": { "type": "number" },
+                          "winRate": { "type": "number" },
+                          "earnings": { "type": "number" }
+                        }
+                      }
+                    },
+                    "searchTime": { "type": "string", "format": "date-time" }
+                  }
+                }
+              } 
+            } 
+          },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
     "/matches/{id}": {
-      "get": { "summary": "Get match", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "404": { "description": "Not Found" } } }
+      "get": { "summary": "Get match", "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" }, "404": { "description": "Not Found" } } },
+      "delete": {
+        "summary": "Delete a match (only if not matched)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object", "properties": { "message": { "type": "string" } } } } } },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
+    "/matches/{id}/join": {
+      "post": {
+        "summary": "Join a match",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": {
+          "200": { 
+            "description": "OK", 
+            "content": { 
+              "application/json": { 
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "action": { "type": "string", "enum": ["joined"] },
+                    "match": { "$ref": "#/components/schemas/Match" }
+                  }
+                }
+              } 
+            } 
+          },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
+    "/matches/{id}/matchWithPlayer": {
+      "post": {
+        "summary": "Match with a specific player ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "playerId": { "type": "string", "description": "ID of the player to match with" }
+                },
+                "required": ["playerId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { 
+            "description": "OK", 
+            "content": { 
+              "application/json": { 
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "action": { "type": "string", "enum": ["matched_with_player"] },
+                    "match": { "$ref": "#/components/schemas/Match" },
+                    "targetPlayer": { "type": "object" }
+                  }
+                }
+              } 
+            } 
+          },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not Found" }
+        }
+      }
+    },
+    "/matches/{id}/screenshot": {
+      "post": {
+        "summary": "Submit screenshot for verification",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [ { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "screenshot": { "type": "string" },
+                  "playerIndex": { "type": "number" }
+                },
+                "required": ["screenshot", "playerIndex"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Match" } } } },
+          "400": { "description": "Bad Request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Not Found" }
+        }
+      }
     },
     "/matches/user/{userId}": {
       "get": { "summary": "List user's matches", "parameters": [ { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } } ], "responses": { "200": { "description": "OK" } } }
+    },
+    "/matches/user/{userId}/active": {
+      "get": {
+        "summary": "Get user's active matches (for returning to platform)",
+        "parameters": [ { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } } ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Match" } } } } },
+          "500": { "description": "Server Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
     },
     "/users": {
       "get": { "summary": "List users", "responses": { "200": { "description": "OK" } } }
