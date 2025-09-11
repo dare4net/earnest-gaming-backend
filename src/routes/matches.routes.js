@@ -6,6 +6,16 @@ const League = require('../models/league.model');
 const User = require('../models/user.model');
 const auth = require('../middleware/auth');
 
+// Helper to compute a simple lifecycle status for frontend
+function computeMatchStatus(match) {
+  if (!match) return 'matching';
+  if (match.status === 'inProgress') return 'playing';
+  if (match.status === 'verification') return 'verification';
+  if (match.status === 'completed') return 'finished';
+  if (match.matchmakingStatus === 'matched') return 'matched';
+  return 'matching';
+}
+
 // Get all matches
 router.get('/', async (req, res) => {
   try {
@@ -13,7 +23,8 @@ router.get('/', async (req, res) => {
       .populate('league', 'name')
       .populate('players.user', 'username avatar')
       .lean();
-    res.json(matches);
+    const withStatus = matches.map(m => ({ ...m, matchStatus: computeMatchStatus(m) }));
+    res.json(withStatus);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching matches', error: error.message });
   }
@@ -29,7 +40,7 @@ router.get('/:id', async (req, res) => {
   if (!match) {
     return res.status(404).json({ message: 'Match not found' });
   }
-  res.json(match);
+  res.json({ ...match, matchStatus: computeMatchStatus(match) });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching match', error: error.message });
   }
@@ -42,7 +53,8 @@ router.get('/user/:userId', async (req, res) => {
       .populate('league', 'name')
       .populate('players.user', 'username avatar')
       .lean();
-    res.json(matches);
+    const withStatus = matches.map(m => ({ ...m, matchStatus: computeMatchStatus(m) }));
+    res.json(withStatus);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching user matches', error: error.message });
   }
@@ -58,7 +70,8 @@ router.get('/user/:userId/active', async (req, res) => {
     .populate('players.user', 'username avatar')
     .sort({ createdAt: -1 })
     .lean();
-    res.json(matches);
+    const withStatus = matches.map(m => ({ ...m, matchStatus: computeMatchStatus(m) }));
+    res.json(withStatus);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching active matches', error: error.message });
   }
@@ -108,6 +121,7 @@ router.get('/user/:userId/active', async (req, res) => {
 // Search for opponents for a specific match
 router.post('/:id/searchOpponent', auth, async (req, res) => {
   try {
+    console.log('[searchOpponent] user=%s matchId=%s', req.user?._id, req.params.id);
     const match = await Match.findById(req.params.id);
     
     if (!match) {
@@ -132,13 +146,14 @@ router.post('/:id/searchOpponent', auth, async (req, res) => {
     .select('username avatar rank winRate earnings')
     .limit(10) // Limit to 10 random online users
     .lean();
-    
+    console.log('[searchOpponent] found %d online users', potentialOpponents.length);
     res.json({
       matchId: match._id,
       potentialOpponents: potentialOpponents,
       searchTime: new Date().toISOString()
     });
   } catch (error) {
+    console.error('[searchOpponent][error]', error);
     res.status(500).json({ message: 'Error searching for opponents', error: error.message });
   }
 });
@@ -147,6 +162,7 @@ router.post('/:id/searchOpponent', auth, async (req, res) => {
 router.post('/:id/matchWithPlayer', auth, async (req, res) => {
   try {
     const { playerId } = req.body;
+    console.log('[matchWithPlayer] user=%s matchId=%s targetPlayer=%s', req.user?._id, req.params.id, playerId);
     
     if (!playerId) {
       return res.status(400).json({ message: 'playerId is required' });
@@ -168,49 +184,43 @@ router.post('/:id/matchWithPlayer', auth, async (req, res) => {
       return res.status(400).json({ message: 'Match is no longer available for matching' });
     }
     
-    // Find the target player's match
-    const targetMatch = await Match.findOne({
-      'players.user': playerId,
-      matchmakingStatus: 'searching',
-      'players.1': { $exists: false },
-      status: 'scheduled',
-      game: match.game,
-      entryFee: match.entryFee,
-      format: match.format
-    })
-    .populate('players.user', 'username avatar rank winRate');
-    
-    if (!targetMatch) {
-      return res.status(404).json({ message: 'Target player not found or not available for matching' });
+    // Instead of finding/joining target's match, attach target player to THIS match
+    // Ensure match is still available
+    if (match.players.length >= 2) {
+      return res.status(400).json({ message: 'Match is full' });
     }
-    
-    // Check if trying to match with yourself
-    if (String(targetMatch.players[0].user) === String(req.user._id)) {
+    if (match.matchmakingStatus !== 'searching') {
+      return res.status(400).json({ message: 'Match is not available for matching' });
+    }
+    // Prevent matching with yourself
+    if (String(playerId) === String(req.user._id)) {
       return res.status(400).json({ message: 'Cannot match with yourself' });
     }
-    
-    // Add current user to target match
-    targetMatch.players.push({
-      user: req.user._id,
+    // Prevent duplicate
+    if (match.players.some(p => String(p.user) === String(playerId))) {
+      return res.status(400).json({ message: 'Player already in match' });
+    }
+
+    match.players.push({
+      user: playerId,
       team: 'B',
       status: 'pending'
     });
-    targetMatch.matchmakingStatus = 'matched';
-    targetMatch.status = 'scheduled';
-    await targetMatch.save();
-    
-    // Delete the original match since user joined another match
-    await Match.findByIdAndDelete(match._id);
-    
-    const populatedMatch = await Match.findById(targetMatch._id)
+    match.matchmakingStatus = 'matched';
+    match.status = 'scheduled';
+    await match.save();
+    console.log('[matchWithPlayer] matched. matchId=%s players=%d', match._id, match.players.length);
+
+    const populatedMatch = await Match.findById(match._id)
       .populate('players.user', 'username avatar');
-    
+
     res.json({
       action: 'matched_with_player',
       match: populatedMatch,
-      targetPlayer: targetMatch.players[0].user
+      targetPlayer: playerId
     });
   } catch (error) {
+    console.error('[matchWithPlayer][error]', error);
     res.status(400).json({ message: 'Error matching with player', error: error.message });
   }
 });
@@ -218,6 +228,7 @@ router.post('/:id/matchWithPlayer', auth, async (req, res) => {
 // Join a match
 router.post('/:id/join', auth, async (req, res) => {
   try {
+    console.log('[join] user=%s matchId=%s', req.user?._id, req.params.id);
     const match = await Match.findById(req.params.id);
     if (!match) {
       return res.status(404).json({ message: 'Match not found' });
@@ -245,6 +256,7 @@ router.post('/:id/join', auth, async (req, res) => {
     match.matchmakingStatus = 'matched';
     match.status = 'scheduled'; // Move to next stage
     await match.save();
+    console.log('[join] joined. matchId=%s players=%d', match._id, match.players.length);
     
     const populatedMatch = await Match.findById(match._id)
       .populate('players.user', 'username avatar');
@@ -254,6 +266,7 @@ router.post('/:id/join', auth, async (req, res) => {
       match: populatedMatch
     });
   } catch (error) {
+    console.error('[join][error]', error);
     res.status(400).json({ message: 'Error joining match', error: error.message });
   }
 });
@@ -354,6 +367,50 @@ router.post('/:id/screenshot', auth, async (req, res) => {
     res.json(match);
   } catch (error) {
     res.status(400).json({ message: 'Error submitting screenshot', error: error.message });
+  }
+});
+
+// Update match lifecycle status
+router.patch('/:id/status', auth, async (req, res) => {
+  try {
+    const { status } = req.body; // matching | matched | playing | verification | finished
+    console.log('[updateStatus] user=%s matchId=%s status=%s', req.user?._id, req.params.id, status);
+    const match = await Match.findById(req.params.id);
+    if (!match) return res.status(404).json({ message: 'Match not found' });
+    const isParticipant = match.players.some(p => String(p.user) === String(req.user._id));
+    if (!isParticipant) return res.status(403).json({ message: 'Forbidden' });
+
+    switch (status) {
+      case 'matching':
+        match.matchmakingStatus = 'searching';
+        match.status = 'scheduled';
+        break;
+      case 'matched':
+        match.matchmakingStatus = 'matched';
+        match.status = 'scheduled';
+        break;
+      case 'playing':
+        match.matchmakingStatus = 'matched';
+        match.status = 'inProgress';
+        break;
+      case 'verification':
+        match.status = 'verification';
+        break;
+      case 'finished':
+        match.status = 'completed';
+        break;
+      default:
+        return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    await match.save();
+    const populated = await Match.findById(match._id)
+      .populate('players.user', 'username avatar')
+      .lean();
+    res.json({ ...populated, matchStatus: computeMatchStatus(populated) });
+  } catch (error) {
+    console.error('[updateStatus][error]', error);
+    res.status(400).json({ message: 'Error updating status', error: error.message });
   }
 });
 
