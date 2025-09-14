@@ -32,7 +32,35 @@ const server = http.createServer(app);
 const { Server } = require('socket.io');
 const io = new Server(server, {
   cors: {
-    origin: '*'
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps)
+      if (!origin) return callback(null, true);
+      
+      // List of allowed origins for Socket.IO
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'https://earnest-gaming.vercel.app',
+        'https://earnest-gaming-project.vercel.app',
+        process.env.FRONTEND_URL,
+        process.env.CLIENT_URL
+      ].filter(Boolean);
+      
+      // Allow any localhost in development
+      if (process.env.NODE_ENV === 'development') {
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+          return callback(null, true);
+        }
+      }
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.log('Socket.IO CORS blocked origin:', origin);
+        callback(new Error('Not allowed by Socket.IO CORS'));
+      }
+    },
+    credentials: true
   }
 });
 app.locals.io = io;
@@ -102,8 +130,52 @@ io.on('connection', async (socket) => {
   });
 });
 
-// 🔓 Enable CORS for all origins
-app.use(cors());
+// 🔓 Configure CORS for production deployment
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:3001', 
+      'https://earnest-gaming.vercel.app',
+      'https://earnest-gaming-project.vercel.app',
+      // Add your production frontend URL here
+      process.env.FRONTEND_URL,
+      process.env.CLIENT_URL
+    ].filter(Boolean); // Remove undefined values
+    
+    // Allow any localhost in development
+    if (process.env.NODE_ENV === 'development') {
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+    }
+    
+    // TEMPORARY: Allow all origins in production for immediate deployment
+    // TODO: Replace with specific origins once you know your production URLs
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_ALL_ORIGINS === 'true') {
+      console.log('⚠️  WARNING: Allowing all origins in production!');
+      return callback(null, true);
+    }
+    
+    // Check if origin is allowed
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
+};
+
+app.use(cors(corsOptions));
 
 // Middleware
 app.use(express.json());
