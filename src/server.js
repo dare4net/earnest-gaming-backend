@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
+const http = require('http');
 
 // Load environment variables
 dotenv.config();
@@ -25,6 +26,81 @@ const userRoutes = require('./routes/users.routes');
 const walletRoutes = require('./routes/wallet.routes');
 
 const app = express();
+const server = http.createServer(app);
+
+// Socket.IO setup
+const { Server } = require('socket.io');
+const io = new Server(server, {
+  cors: {
+    origin: '*'
+  }
+});
+app.locals.io = io;
+
+const jwt = require('jsonwebtoken');
+const User = require('./models/user.model');
+
+// In-memory online users tracking keyed by public userId
+// Value is number of active sockets for that user
+const onlineUsers = new Map();
+app.locals.onlineUsers = onlineUsers;
+io.onlineUsers = onlineUsers;
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token || socket.handshake.headers['authorization']?.replace('Bearer ', '');
+  if (!token) return next();
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.userId;
+    return next();
+  } catch (err) {
+    return next();
+  }
+});
+
+io.on('connection', async (socket) => {
+  try {
+    if (socket.userId) {
+      const user = await User.findById(socket.userId);
+      if (user?.userId) {
+        socket.userPublicId = user.userId;
+        socket.join(`user:${user.userId}`);
+        console.log(`🔌 Socket connected and joined room user:${user.userId}`);
+
+        // Increment connection count and set DB isOnline if this is first connection
+        const prevCount = onlineUsers.get(user.userId) || 0;
+        onlineUsers.set(user.userId, prevCount + 1);
+        if (prevCount === 0) {
+          await User.findByIdAndUpdate(socket.userId, { isOnline: true, lastActive: new Date() });
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Socket connection error:', e);
+  }
+
+  socket.on('join-room', (room) => {
+    console.log(`[socket] User ${socket.userPublicId} joining room: ${room}`);
+    socket.join(room);
+  });
+
+  socket.on('disconnect', async () => {
+    try {
+      if (socket.userId && socket.userPublicId) {
+        const prevCount = onlineUsers.get(socket.userPublicId) || 1;
+        const nextCount = prevCount - 1;
+        if (nextCount > 0) {
+          onlineUsers.set(socket.userPublicId, nextCount);
+        } else {
+          onlineUsers.delete(socket.userPublicId);
+          await User.findByIdAndUpdate(socket.userId, { isOnline: false, lastActive: new Date() });
+        }
+      }
+    } catch (e) {
+      console.error('Socket disconnect error:', e);
+    }
+  });
+});
 
 // 🔓 Enable CORS for all origins
 app.use(cors());
@@ -83,6 +159,6 @@ app.use((err, req, res, next) => {
 
 // Start server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);
 });

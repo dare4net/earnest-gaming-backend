@@ -1,7 +1,21 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
+function generateUserId() {
+  const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += charset[Math.floor(Math.random() * charset.length)];
+  }
+  return `USR-${result}`;
+}
+
 const userSchema = new mongoose.Schema({
+  userId: {
+    type: String,
+    unique: true,
+    index: true
+  },
   username: {
     type: String,
     required: true,
@@ -70,6 +84,9 @@ const userSchema = new mongoose.Schema({
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
+  if (!this.userId) {
+    this.userId = generateUserId();
+  }
   if (!this.isModified('password')) return next();
   
   try {

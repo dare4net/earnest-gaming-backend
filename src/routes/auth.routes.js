@@ -51,12 +51,18 @@ router.post('/register', async (req, res) => {
     res.status(201).json({
       success: true,
       user: {
-        id: user._id,
+        _id: user._id,
+        userId: user.userId,
         username: user.username,
         email: user.email,
         avatar: user.avatar,
         role: user.role,
-        selectedGames: user.selectedGames
+        wins: user.wins,
+        winRate: user.winRate,
+        earnings: user.earnings,
+        selectedGames: user.selectedGames,
+        isOnline: user.isOnline,
+        lastActive: user.lastActive
       },
       token
     });
@@ -103,7 +109,8 @@ router.post('/login', async (req, res) => {
     res.json({
       success: true,
       user: {
-        id: user._id,
+        _id: user._id,
+        userId: user.userId,
         username: user.username,
         email: user.email,
         avatar: user.avatar,
@@ -111,7 +118,9 @@ router.post('/login', async (req, res) => {
         wins: user.wins,
         winRate: user.winRate,
         earnings: user.earnings,
-        selectedGames: user.selectedGames
+        selectedGames: user.selectedGames,
+        isOnline: user.isOnline,
+        lastActive: user.lastActive
       },
       token
     });

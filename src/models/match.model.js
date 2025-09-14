@@ -20,6 +20,12 @@ const matchSchema = new mongoose.Schema({
     enum: ['searching', 'matched', 'ready'],
     default: 'searching'
   },
+  // When creator invites a specific player, store their user id here until accept/decline
+  pendingInviteUser: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
   players: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -120,6 +126,14 @@ const matchSchema = new mongoose.Schema({
       type: String,
       enum: ['pending', 'verified', 'rejected', 'disputed'],
       default: 'pending'
+    },
+    startedAt: {
+      type: Date,
+      default: null
+    },
+    expiresAt: {
+      type: Date,
+      default: null
     },
     verifiedBy: {
       type: mongoose.Schema.Types.ObjectId,
